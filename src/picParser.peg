@@ -1,0 +1,301 @@
+// PIC16F1xxxx 
+{
+  // options
+  var wIdent, ids, comments, reservedWords
+    , addIdent, getIdent, createInst
+  ;
+  reservedWords = {
+    if:1, loop:1, while:1, do:1, until:1, 
+    clr:1, Clr:1, set:1, Set:1,
+    nop:1, clrWdt:1, clrWDT:1, reset:1, Reset:1, return:1, retfie:1,
+    setBSR:1, setPCLATH:1, test:1, option:1, Option:1, 
+    trisA:1, trisB:1, trisC:1, goto:1, call:1
+  };
+  options = options || {};
+  ids = options.ids || {};          //  can inject predefined's here
+  ids.all = ids.all || {};
+  ids.consts = ids.consts || {};
+  ids.files = ids.files || {};
+  ids.bits = ids.bits || {};
+  ids.addresses = ids.addresses || {};
+  addIdent = function(id, line, column){
+    var stype, name;
+    name = id.name;
+    if(typeof(name)!=="string" || name===""){
+      error("'id.name' is required (in addIdent(id))");
+    }
+    if(name in reservedWords){
+      error("'"+name+"' is a reserved word!");
+    }
+    if(id.type!=="ident"){
+      error("In addIdent(): expected type to be 'ident'!");
+    }
+    stype = id.subType;
+    id.line = line;
+    id.column = column;
+    if(stype==="const"){
+      ids.consts[name] = id;
+    } else if(stype==="file"){
+      ids.files[name] = id;
+    } else if(stype==="bit"){
+      ids.bits[name] = id;
+    } else if(stype==="address"){
+      ids.addresses[name] = id;
+    } else {
+      error("In addIdent(id): unexpected id.subType:'"+stype+"'!");
+      return;   
+    }
+    ids.all[name] = id;
+  };
+  getIdent = function(name){
+    return ids.all[name];
+  };
+  createInst = function(subType, id, line, column){
+    return {type:"inst", subType:subType, ident:id, line:line, column:column};
+  }
+  wIdent = {type:"ident", subType:"file", name:"w", w:true};
+  if(!ids.all.w) { addIdent(wIdent, 0, 0); }
+  wIdent.name = "W";
+  if(!ids.all.W) { addIdent(wIdent, 0, 0); }
+  comments = [];
+}
+
+start = statements
+
+statementsx = xxxx
+xxxx = "xxxx"
+
+statements = ws? s:(def / setAddress / lineComment / blockComment
+                / blockStatement / statement)* 
+{ 
+  var instDirects = [];
+  instDirects = s.filter(function(obj){
+    return obj.type==="inst" || obj.type==="directive";
+  });
+  return {instDirects:instDirects, s:s, idents:ids, comments:comments};
+}
+
+blockStatement = s:(block / if) { return s; }
+
+statement =
+ s:( nop 
+  / goto / return / clrWdt / sleep / retfie / setBSR / setPCLATH
+  / clr / test / option / tris / reset / callCall / call
+  / assignment
+  / bitClrSet
+  / unexpected 
+ ) { return s; }
+
+def = def:(defConst / defFile / defBit / label) { return def; }
+
+defConst = "const" lbrkt ident:ident wsComma num:number rbrkt end
+ { var name, id;
+   name = ident.name;
+   id=getIdent(name);
+   if(id){
+     error("Identifier '"+name+"' is already defined! (at line:"+id.line+")");
+   }
+   id = {type:"ident", subType:"const", constType:"number", name:name, value:num.value};
+   addIdent(id, line(), column());
+   return id;
+ }
+defFile = "defFile" lbrkt ident:ident wsComma num:number rbrkt end
+ { var name, id;
+   name = ident.name;
+   id=getIdent(name);
+   if(id){
+     error("Identifier '"+name+"' is already defined! (at line:"+id.line+")");
+   }
+   id = {type:"ident", subType:"file", name:name, value:num.value};
+   addIdent(id, line(), column());
+   return id;
+ }
+defBit = "defBit" lbrkt ident:ident wsComma bIdent:bitIdent rbrkt end
+ { var name, id;
+   name = ident.name;
+   id = getIdent(name);
+   if(id){
+     error("Identifier '"+name+"' is already defined! (at line:"+id.line+")");
+   }
+   id = {type:"ident", subType:"bit", name:name,
+         fileIdent:bIdent.fileIdent, bit:bIdent.bit};
+   if(bIdent.error) { expected(bIdent.error); }
+   addIdent(id, line(), column());
+   return id;
+ }
+label = ident:ident ":" ws?
+ { var name, id;
+   name = ident.name;
+   id = getIdent(name);
+   if(id){
+     if(id.defined || id.subType!=="address"){
+       error("Identifier '"+name+"' is already defined! (at line:"+id.line+")");
+     }
+     id.defined = true;
+     id.line=line(); id.column=column();
+   } else {
+     id = {type:"ident", subType:"address", name:name, defined:true};
+     addIdent(id, line(), column());
+   }
+   return {type:"directive", subType:"label", ident:id,
+           line:line(), column:column()};
+ }
+setAddress = "setAddress" lbrkt num:number rbrkt end
+ {
+   return {type:"directive", subType:"setAddress", num:num,
+           line:line(), column:column()};
+ }
+lineComment = "//" c:[^\n]* "\n"? ws?
+ { var obj;
+   obj = {type:"comment", subType:"line", comment:c.join(""),
+          line:line(), column:column()};
+   comments.push(obj);
+   return obj;
+ }
+blockComment = "/*" c:(!"*/" .)* "*/" ws?
+ { var obj;
+   c=c.map(function(i){return i[1];});
+   obj = {type:"comment", subType:"block", comment:c.join(""),
+          line:line(), column:column()};
+   comments.push(obj);
+   return obj;
+ }
+unexpected = next:(ident/word/[^}])
+ { var name, id;
+   name = next.name;
+   if(name){
+     id = getIdent(name);
+     if(id){
+       error("'"+name+"'"+JSON.stringify(id));
+     } else {
+       error("'"+name+"' is not expected or is undefined!");
+     }
+   } else {
+     error("'"+next+"' is unexpected!");
+   }
+ }
+
+nop = "nop" lrbrkt? end
+ { return createInst("nop", null, line(), column()); }
+clrWdt = ("clrWdt"/"clrWDT") lrbrkt? end
+ { return createInst("clrWDT", null, line(), column()); }
+sleep = "sleep" lrbrkt? end
+ { return createInst("sleep", null, line(), column()); }
+retfie = "retfie" lrbrkt? end
+ { return createInst("retfie", null, line(), column()); }
+reset = "reset" lrbrkt? end
+ { return createInst("reset", null, line(), column()); }
+
+return = "return" ws? ident:(number/refIdent)? end 
+ { return createInst("return", ident, line(), column()); }
+setBSR = "setBSR" lbrkt ident:(number/refIdent) rbrkt end
+ { return createInst("setBSR", ident, line(), column()); }
+setPCLATH = "setPCLATH" lbrkt ident:(number/refIdent) rbrkt end
+ { return createInst("setPCLATH", ident, line(), column()); }
+clr = "clr" lbrkt ident:refIdent rbrkt end
+ { return createInst("clr", ident, line(), column()); }
+com = "com" lbrkt idend:refIdent rbrkt end
+ { return createInstr("com", ident, line(), column()); }
+// Note: test(file) same as W=f;
+test = "test" lbrkt ident:refIdent rbrkt end
+ { return createInst("test", ident, line(), column()); }
+option = "option" lbrkt ident:refIdent? rbrkt end
+ { return createInst("option", ident, line(), column()); }
+tris = "tris" t:("A"/"B"/"C") lbrkt ident:refIdent? rbrkt end
+ { return createInst("tris"+t, ident, line(), column()); }
+goto = "goto" ws? ident:addressIdent end
+ { return createInst("goto", ident, line(), column()); }
+callCall = "call" lbrkt ident:addressIdent rbrkt end
+ { return createInst("call", ident, line(), column()); }
+call = &(ident lbrkt) ident:addressIdent lbrkt arg:ident? rbrkt end
+ { var obj = createInst("call", ident, line(), column());
+   obj.arg = arg;
+   return obj;
+ }
+
+// Note: currently ident Or srcIdent must be 'W'
+assignment = dest:refIdent ws? op:("="/"+="/"-="/"&="/"^="/("=" ws? "com")) ws?
+ src:(refIdent/number) end
+ { var obj = createInst("assignment", null, line(), column());
+    obj.op=op; obj.src=src; obj.dest=dest;
+    return obj;
+ }
+
+if = "if" ws? not:("Not"/"not")? ws?
+ cmp:("Zero"/"Carry"/"Borrow"/"Set"/"Clr"/"BitClr"/"BitSet")?
+ lbrkt pre:("--"/"++")? ws? ident:(bitIdent/refIdent)?
+ rbrkt block:block elseBlock:elseBlock?
+ { // if no cmp & ident is 'bit' then 'BitSet', or is 'file' then 'NotZero'
+   cmp = cmp || "";
+   return {type:"inst", subType:"if", cmp:cmp, not:!!not, pre:pre,
+           ident:ident, line:line(), column:column()};
+ }
+
+bitClrSet = &(ident ws? "." ws? (ident/number ".")? ws?
+              ("set"/"Set"/"clr"/"Clr") lrbrkt? end)
+ bitIdent:bitIdent ws? "." ws? t:("set"i/"clr"i) lrbrkt? end
+ { 
+   return {type:"inst", subType:"bit"+t.toLowerCase(), bitIdent:bitIdent,
+           line:line(), column:column()}; 
+ }
+
+block = lbrace statements:statements rbrace { return statements; }
+elseBlock = "else" block:block { return block; }
+
+addressIdent = ident:ident
+ {
+   var id, name=ident.name 
+   id = getIdent(name);
+   // expect an addressIdent
+   if(id) {
+     return id;
+   } else {
+     // OK assume that it is defined some where ahead
+     id = {type:"ident", subType:"address", name:name, defined:false};
+     addIdent(id, line(), column());
+   }
+   return id;
+ }
+
+refIdent = ident:ident 
+{
+  var id=getIdent(ident.name);
+  if(id) { return id; }
+  else { error("'"+ident.name+"' is not defined!"); }
+}
+
+bitDefIdent = ident:refIdent 
+ &{ var id=getIdent(ident.name);
+    if(!id) { error("'"+ident.name+"' is not defined!"); }
+    return id.subType==="bit"; }
+ { id = getIdent(ident.name); return id; }
+
+fileIdentDotBit = ident:refIdent 
+ &{ return getIdent(ident.name).subType==="file"; }
+ ws? bit:dotBit
+ { return {type:"ident", subType:"bit", fileIdent:ident, bit:bit}; }
+
+bitIdent = bitDefIdent/fileIdentDotBit
+
+dotBit = "." ws? id:(ident/number) 
+ { return id; }
+ident = f:[_a-zA-Z] r:$[_0-9a-zA-Z]*
+ !{ return (f+r) in reservedWords; }
+ { return {type:"identRef", name:f+r, line:line(), column:column()}; }
+word = f:[_a-zA-Z] r:$[_0-9a-zA-Z]* { return f+r; }
+
+number = num:(hexNum / decNum / binNum) { return {type:"number", value:num}; }
+hexNum = "0x" d:$[0-9a-fA-F]+ { return parseInt(d, 16); }
+decNum = d:$[0-9]+ { return parseInt(d, 10); }
+binNum = ("0b"/"0B") d:$[01]+ { return parseInt(d, 2); }
+bitNum = b:[0-7] { return parseInt(b, 10); }
+lbrkt = ws? "(" ws? { return "("; }
+rbrkt = ws? ")" ws? { return ")"; }
+lrbrkt = lbrkt rbrkt { return "()"; }
+lbrace = ws? "{" ws? { return String.fromCharCode(123); }
+rbrace = ws? "}" ws? { return String.fromCharCode(125); }
+//end = ws? ";" ws? { return ";"; }
+end = [ \t]* [;\n\r] ws? { return "[end]"; }
+wsComma = (wsChar+ / (ws? "," ws?) )
+ws = $wsChar+
+wsChar = [ \t\n\r]

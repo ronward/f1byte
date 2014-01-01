@@ -1,0 +1,58 @@
+goto main;
+nop;
+nop;
+retfie;
+
+i10:
+ nop;
+i9:
+ nop;
+i8:
+ nop;
+i7:
+ nop;
+i6:
+ nop;
+i5:
+ nop;
+i4:
+ return;
+
+i100:
+ i10();
+i90:
+ i10();
+i80:
+ i10();
+i70:
+ i10();
+i60:
+ i10();
+i50:
+ i10();
+i40:
+ i10();
+i30:
+ i10();
+i20:
+ i10();
+ i6();
+ return;
+
+xdelay:
+ w=0;
+xdelayLoop:
+ w-=1;
+ i100();
+ ifNotZero() { goto xdelayLoop; }
+ return;
+
+main:
+ W=0xFD;
+ trisA(W);	// output on RA2
+mainLoop:
+ RA2.set;
+ xdelay();
+ RA2.clr;
+ xdelay();
+ goto mainLoop;

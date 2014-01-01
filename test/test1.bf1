@@ -1,0 +1,21 @@
+// line comment
+/* block
+comment */
+const(PI, 3);
+defFile(f1, 0x20);
+defBit(b1, f1.1);
+start:
+ clr(w);
+ return;
+ return 42;
+ goto start;
+ start();
+ f1+=w;
+ w=PI;
+ goto forward;
+ forward2();
+forward:
+forward2:
+ b1.set();
+ f1.3.clr();
+ reset();

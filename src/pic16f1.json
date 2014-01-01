@@ -1,0 +1,622 @@
+{
+  "notes":{
+    "opEx":[
+      "f = fileReg. '0x00'-'0x7f'  (bits 0-6)",
+      "d = 0-destination W Reg, 1-destination fileReg  (bit7)",
+      "b = bit mask (bits 7,8&9 )",
+      "k = constant data (k5, k6, k7, k8, k11, from bit0)",
+      "n = FSR/INDF 0 or 1   (bit2 or bit6)",
+      "mm = ",
+      "Byte-Oriented fileReg operations"]
+    }
+  , "instructions": {
+    "addwf": {
+      "name":"ADDWF",
+      "flags":"c, dc, z",
+      "opcode":"0x0700",
+      "opEx":"d, f7",
+      "docs": "Add W + f",
+      "notes":"W|f = W + f",
+      "x":"W+=f; f+=W;",
+      "basic": 1,
+      "checked": 1
+    }
+    , "addwfc": {
+      "name":"ADDWFC",
+      "flags":"c, dc, z",
+      "opcode":"0x3D00",
+      "opEx":"d, f7",
+      "docs": "Add with Carry W and f",
+      "notes":"W|f = W + f + c",
+      "x":"W+=f+C; f+=W+C;",
+      "basic": 2,
+      "checked":1
+    }
+    , "andwf": {
+      "name":"ANDWF",
+      "flags":"z",
+      "opcode":"0x0500",
+      "opEx":"d, f7",
+      "docs": "And W with f",
+      "notes":"W|f = W AND f",
+      "x":"W&=f; f&=W;",
+      "basic": 1,
+      "checked":1
+    }
+    , "asrf": {
+      "name":"ASRF",
+      "flags":"c, z",
+      "opcode":"0x3700",
+      "opEx":"d, f7",
+      "docs": "Arithemtic Right Shift",
+      "notes":"W|f = f>>1, f7->f6, f0->c",
+      "x":"W=f>>1; f=f>>1;",
+      "basic": 2,
+      "checked":1
+    }
+    , "lslf": {
+      "name":"LSLF",
+      "flags":"c, z",
+      "opcode":"0x3500",
+      "opEx":"d, f7",
+      "docs": "Logical Left Shift",
+      "notes":"W|f = f<<1 (f7->c, 0->f0)",
+      "x":"W=f<<1; f=f<<1;",
+      "basic": 1,
+      "checked":1
+    }
+    , "lsrf": {
+      "name":"LSRF",
+      "flags":"c, z",
+      "opcode":"0x3600",
+      "opEx":"d, f7",
+      "docs": "Logical Right Shift",
+      "notes":"W|f = f>>1 (f0->c, 0->f7)",
+      "x":"W=f>>>1; f=f>>>1;",
+      "basic": 1,
+      "checked":1
+    }
+    , "clrf": {
+      "name":"CLRF",
+      "flags":"z",
+      "opcode":"0x0180",
+      "opEx":"f7",
+      "docs": "Clear f",
+      "notes":"f=0, z=1",
+      "x":"f=0;",
+      "basic": 2,
+      "checked":1
+    }
+    , "clrw": {
+      "name":"CLRW",
+      "flags":"z",
+      "opcode":"0x0100",
+      "opEx":"",
+      "docs": "Clear W",
+      "notes":"W=0, z=1",
+      "x":"W=0;",
+      "basic": 2,
+      "checked":1
+    }
+    , "comf": {
+      "name":"COMF",
+      "flags":"z",
+      "opcode":"0x0900",
+      "opEx":"d, f7",
+      "docs": "Complement f (negation)",
+      "notes":"W|f = f ^ 0xFF (-f == f^0xFF+1)",
+      "Q":"xor 255 or negative (xor 255 +1)",
+      "x":"",
+      "basic": 2,
+      "checked":1
+    }
+    , "decf": {
+      "name":"DECF",
+      "flags":"z",
+      "opcode":"0x0300",
+      "opEx":"d, f7",
+      "docs": "Decrement f",
+      "notes":"W|f=f-1",
+      "x":"W=f-1; f-=1;",
+      "basic": 1,
+      "checked":1
+    }
+    , "incf": {
+      "name":"INCF",
+      "flags":"z",
+      "opcode":"0x0A00",
+      "opEx":"d, f7",
+      "docs": "Increment f",
+      "notes":"W|f=f+1",
+      "x":"W=f+1; f+=1;",
+      "basic": 1,
+      "checked":1
+    }
+    , "iorwf": {
+      "name":"IORWF",
+      "flags":"z",
+      "opcode":"0x0400",
+      "opEx":"d, f7",
+      "docs": "Inclusive OR W with f",
+      "notes":"W|f = W OR f",
+      "x":"W|=f; f|=W;",
+      "basic": 1,
+      "checked":1
+    }
+    , "movf": {
+      "name":"MOVF",
+      "flags":"z",
+      "opcode":"0x0800",
+      "opEx":"d, f7",
+      "docs": "Move f",
+      "notes":"W|f = f",
+      "x":"W=f; zTest(f);",
+      "basic": 1,
+      "checked":1
+    }
+    , "movwf": {
+      "name":"MOVWF",
+      "flags":"",
+      "opcode":"0x0080",
+      "opEx":"f7",
+      "docs": "Move W to f",
+      "notes":"f = W",
+      "x":"f=W",
+      "basic": 1,
+      "checked":1
+    }
+    , "rlf": {
+      "name":"RLF",
+      "flags":"c",
+      "opcode":"0x0D00",
+      "opEx":"d, f7",
+      "docs": "Rotate Left f through Carry",
+      "notes":"W|f = f<<c  (f7->c)",
+      "x":"W=f<<C; f=f<<C;",
+      "basic": 2,
+      "checked":1
+    }
+    , "rrf": {
+      "name":"RRF",
+      "flags":"c",
+      "opcode":"0x0C00",
+      "opEx":"d, f7",
+      "docs": "Rotate Right f through Carry",
+      "notes":"W|f = c>>f  (f0->c)",
+      "x":"W=C>>f; f=C>>f;",
+      "basic": 2,
+      "checked":1
+    }
+    , "subwf": {
+      "name":"SUBWF",
+      "flags":"c, dc, z",
+      "opcode":"0x0200",
+      "opEx":"d, f7",
+      "docs": "Subtract W from f",
+      "notes":"W|f = f - W  (c=0(B=1) if W>f, dc=0 if w<0:3> > f<0:3>)",
+      "x":"W=f-W; f-=W;",
+      "basic": 1,
+      "checked":1
+    }
+    , "subwfb": {
+      "name":"SUBWFB",
+      "flags":"c, dc, z",
+      "opcode":"0x3B00",
+      "opEx":"d, f7",
+      "docs": "Subtract with Borrow W from f",
+      "notes":"W|f = f - W - B  (C = -Borrow)",
+      "x":"W=f-W-B; f-=W-B;",
+      "basic": 2,
+      "checked":1
+    }
+    , "swapf": {
+      "name":"SWAPF",
+      "flags":"",
+      "opcode":"0x0E00",
+      "opEx":"d, f7",
+      "docs": "Swap nibbles in f",
+      "notes":"W|f = Swaps the upper and lower nibbles of f",
+      "x":"W=nibbleSwap(f); f=nibbleSwap(f);",
+      "basic": 2,
+      "checked":1
+    }
+    , "xorwf": {
+      "name":"XORWF",
+      "flags":"z",
+      "opcode":"0x0600",
+      "opEx":"d, f7",
+      "docs": "Exclusive OR W with f",
+      "notes":"W|f = W ^ f",
+      "x":"W^=f; f^=W;",
+      "basic": 1,
+      "checked":1
+    }
+
+
+    , "decfsz": {
+      "name":"DECFSZ",
+      "flags":"",
+      "opcode":"0x0B00",
+      "opEx":"d, f7",
+      "docs": "Decrement & skip if 0",
+      "notes":"f=f-1 & skip if f==0",
+      "x":"skipIfZero(--f); f-=1;skipIfZero(f);",
+      "basic": 2,
+      "checked":1
+    }
+    , "incfsz": {
+      "name":"INCFSZ",
+      "flags":"",
+      "opcode":"0x0F00",
+      "opEx":"d, f7",
+      "docs": "Increment & skip if 0",
+      "notes":"f=f+1 & skip if f==0",
+      "x":"skipIfZero(++f); f+=1;skipIfZero(f);",
+      "basic": 2,
+      "checked":1
+    }
+
+    
+    , "bcf": {
+      "name":"BCF",
+      "flags":"",
+      "opcode":"0x1000",
+      "opEx":"b3, f7",
+      "docs": "Bit Clear f",
+      "notes":"Bit#=0",
+      "x":"bitClr(f, bit);",
+      "basic": 1,
+      "checked":1
+    }
+    , "bsf": {
+      "name":"BSF",
+      "flags":"",
+      "opcode":"0x1400",
+      "opEx":"b3, f7",
+      "docs": "Bit Set f",
+      "notes":"Bit#=1",
+      "x":"bitSet(f, bit); f.bit.set();",
+      "basic": 1,
+      "checked":1
+    }
+
+    
+    , "btfsc": {
+      "name":"BTFSC",
+      "flags":"",
+      "opcode":"0x1800",
+      "opEx":"b3, f7",
+      "docs": "Bit Test f & Skip if Clear",
+      "notes":"if Bit#==0 Skip",
+      "x":"ifBitClearSkip(f, bit) skip;",
+      "basic": 1,
+      "checked":1
+    }
+    , "btfss": {
+      "name":"",
+      "flags":"",
+      "opcode":"0x1C00",
+      "opEx":"b3, f7",
+      "docs": "Bit Test f & Skip if Set",
+      "notes":"if Bit#==1 Skip",
+      "x":"ifBitSkip(f, bit) skip;",
+      "basic": 1,
+      "checked":1
+    }
+
+    
+    , "addlw": {
+      "name":"ADDLW",
+      "flags":"c, dc, z",
+      "opcode":"0x3E00",
+      "opEx":"k8",
+      "docs": "Add literal and W",
+      "notes":"W = W + k",
+      "x":"W+=#;",
+      "basic": 1,
+      "checked":1
+    }
+    , "andlw": {
+      "name":"ANDLW",
+      "flags":"z",
+      "opcode":"0x3900",
+      "opEx":"k8",
+      "docs": "AND literal with W",
+      "notes":"W = k AND W",
+      "x":"W&=#;",
+      "basic": 1,
+      "checked":1
+    }
+    , "iorlw": {
+      "name":"IORLW",
+      "flags":"z",
+      "opcode":"0x3800",
+      "opEx":"k8",
+      "docs": "Inclusive OR literal with W",
+      "notes":"W=W OR k",
+      "x":"W|=#;",
+      "basic": 1,
+      "checked":1
+    }
+    , "movlb": {
+      "name":"MOVLB",
+      "flags":"",
+      "opcode":"0x0020",
+      "opEx":"k5",
+      "docs": "Move literal to BSR (Bank Select Reg.)",
+      "notes":"BSR=k5",
+      "x":"BSR=#;",
+      "basic": 1,
+      "checked":1
+    }
+    , "movlp": {
+      "name":"MOVLP",
+      "flags":"",
+      "opcode":"0x3180",
+      "opEx":"k7",
+      "docs": "Move literal to PCLATH",
+      "notes":"PCLATH = k7 (k=0-127)",
+      "x":"PCLATH=#;",
+      "basic": 2,
+      "checked":1
+    }
+    , "movlw": {
+      "name":"MOVLW",
+      "flags":"",
+      "opcode":"0x3000",
+      "opEx":"k8",
+      "docs": "Move literal to W",
+      "notes":"W=k8",
+      "x":"W=#;",
+      "basic": 1,
+      "checked":1
+    }
+    , "sublw": {
+      "name":"SUBLW",
+      "flags":"c, dc, z",
+      "opcode":"0x3C00",
+      "opEx":"k8",
+      "docs": "Subtract W from literal",
+      "notes":"W = # - W",
+      "x":"W=#-W;",
+      "basic": 2,
+      "checked":1
+    }
+    , "xorlw": {
+      "name":"XORLW",
+      "flags":"z",
+      "opcode":"0x3A00",
+      "opEx":"k8",
+      "docs": "Exclusive OR literal with W",
+      "notes":"W = W ^ k",
+      "x":"W^=#;",
+      "basic": 1,
+      "checked":1
+    }
+
+    
+    , "bra": {
+      "name":"BRA",
+      "flags":"",
+      "opcode":"0x3200",
+      "opEx":"k9",
+      "docs": "Relative Branch",
+      "notes":"PC = PC+1+k (k=-256 to 255)",
+      "x":"GOTO label;",
+      "basic": 1,
+      "checked":1
+    }
+    , "brw": {
+      "name":"BRW",
+      "flags":"",
+      "opcode":"0x000B",
+      "opEx":"",
+      "docs": "Relative Branch with W",
+      "notes":"PC = PC + W",
+      "x":"GOTO W;",
+      "basic": 2,
+      "checked":1
+    }
+    , "call": {
+      "name":"CALL",
+      "flags":"",
+      "opcode":"0x2000",
+      "opEx":"k11",
+      "docs": "Call Subroutine",
+      "notes":"(PC+1->TOS) PCLATH<3:6>->PC<11:14> & PC<0:10>=k (k=0-2047)",
+      "x":"Call label;",
+      "basic": 1,
+      "checked":1
+    }
+    , "callw": {
+      "name":"CALLW",
+      "flags":"",
+      "opcode":"0x000A",
+      "opEx":"",
+      "docs": "Call Subroutine with W",
+      "notes":"(PC+1->TOS) PCLATH<0:6>->PC<8:14>, W->PC<0:7>",
+      "x":"CallOffset(W);",
+      "basic": 2,
+      "checked":1
+    }
+    , "goto": {
+      "name":"GOTO",
+      "flags":"",
+      "opcode":"0x2800",
+      "opEx":"k11",
+      "docs": "Goto address",
+      "notes":"PC<11:14>=PCLATH<3:6> & PC<0:10>=k (k=0-2047)",
+      "x":"Goto label;",
+      "basic": 1,
+      "checked":1
+    }
+    , "retfie": {
+      "name":"RETFIE",
+      "flags":"",
+      "opcode":"0x0009",
+      "opEx":"",
+      "docs": "Return from interrupt",
+      "notes":"PC=TOC, GIE=1",
+      "x":"ReturnI;",
+      "basic": 2,
+      "checked":1
+    }
+    , "retlw": {
+      "name":"RETLW",
+      "flags":"",
+      "opcode":"0x3400",
+      "opEx":"k8",
+      "docs": "Return with literal in W",
+      "notes":"PC=TOS, W=k",
+      "x":"Return #;",
+      "basic": 1,
+      "checked":1
+    }
+
+    , "return": {
+      "name":"RETURN",
+      "flags":"",
+      "opcode":"0x0008",
+      "opEx":"",
+      "docs": "Return from Subroutine",
+      "notes":"PC=TOS",
+      "x":"Return;",
+      "basic": 1,
+      "checked":1
+    }
+
+    
+    , "clrwdt": {
+      "name":"CLRWDT",
+      "flags":"to, pd",
+      "opcode":"0x0064",
+      "opEx":"",
+      "docs": "Clear Watchdog Timer",
+      "notes":"TO=1, PD=1",
+      "x":"ClearWDT();",
+      "basic": 1,
+      "checked":1
+    }
+    , "nop": {
+      "name":"NOP",
+      "flags":"",
+      "opcode":"0x0000",
+      "opEx":"",
+      "docs": "No Operation",
+      "notes":"",
+      "x":"Nop();",
+      "basic": 1,
+      "checked":1
+    }
+    , "option": {
+      "name":"OPTION",
+      "deprecated":true,
+      "flags":"",
+      "opcode":"0x0062",
+      "opEx":"",
+      "docs": "Load OPTION_REG with W",
+      "notes":"OPTION_REG=W  (Why? MOVWF instead - need to Bank switch first)",
+      "x":"OptionReg=W;",
+      "basic": 2,
+      "checked":1
+    }
+    , "reset": {
+      "name":"RESET",
+      "flags":"",
+      "opcode":"0x0001",
+      "opEx":"",
+      "docs": "Software Reset",
+      "notes":"Software Reset (resets the nRI flag of the PCON reg.)",
+      "x":"reset();",
+      "basic": 1,
+      "checked":1
+    }
+    , "sleep": {
+      "name":"SLEEP",
+      "flags":"",
+      "opcode":"0x0063",
+      "opEx":"",
+      "docs": "Go into Standby mode",
+      "notes":"PD=0, TO=1, WDTPrecaler=0, WDT=0",
+      "x":"Sleep();",
+      "basic": 1,
+      "checked":1
+    }
+    , "trisa": {
+      "name":"TRISA",
+      "deprecated":true,
+      "flags":"",
+      "opcode":"0x0065",    
+      "opEx":"",
+      "docs": "Load TRISA register with W",
+      "notes":"TRISA = W",
+      "x":"trisA=W;",
+      "basic": 2,
+      "checked":1
+    }
+    , "trisb": {
+      "name":"TRISB",
+      "deprecated":true,
+      "flags":"",
+      "opcode":"0x0066",    
+      "opEx":"",
+      "docs": "Load TRISB register with W",
+      "notes":"TRISB = W",
+      "x":"trisB=W;",
+      "basic": 2,
+      "checked":1
+    }
+    , "trisc": {
+      "name":"TRISC",
+      "deprecated":true,
+      "flags":"",
+      "opcode":"0x0067",    
+      "opEx":"",
+      "docs": "Load TRISC register with W",
+      "notes":"TRISC = W",
+      "x":"trisC=W;",
+      "basic": 2,
+      "checked":1
+    }
+
+    
+    , "addfsr": {
+      "name":"ADDFSR",
+      "flags":"",
+      "opcode":"0x3100",
+      "opEx":"n, k6",
+      "docs": "Add Literal k to FSRn",
+      "desc": "The signed 6-bit literal 'k' is added to the contents of the FSRnH:FSRnL register pair",
+      "notes":"k = -32 to 31, k is added to the FSRn pair (L and H)",
+      "x":"FSR1+=#; FSR2-=#;",
+      "basic": 2,
+      "checked":1
+    }
+  }
+  , "extra instructions":{
+    "notes":[
+      "0x0010 FSR1++; W=*FSR1; z",
+      "0x0011 FSR1--; W=*FSR1; z",
+      "0x0012 W=*FSR1; FSR1++; z",
+      "0x0013 W=*FSR1; FSR1--; z",
+      "0x0014 FSR2++; W=*FSR2; z",
+      "0x0015 FSR2--; W=*FSR2; z",
+      "0x0016 W=*FSR2; FSR2++; z",
+      "0x0017 W=*FSR2; FSR2--; z",
+      "0x0018 FSR1++; *FSR1=W;",
+      "0x0019 FSR1--; *FSR1=W;",
+      "0x001A *FSR1=W; FSR1++;",
+      "0x001B *FSR1=W; FSR1--;",
+      "0x001C FSR2++; *FSR2=W;",
+      "0x001D FSR2--; *FSR2=W;",
+      "0x001E *FSR2=W; FSR2++;",
+      "0x001F *FSR2=W; FSR2--;",
+      "0x3F00+k6 W=*[FSR1+k6]; z k6=-32 to 31",
+      "0x3F40+k6 W=*[FSR2+k6]; z",
+      "0x3F80+k6 *[FSR1+k6]=W;",
+      "0x3FC0+k6 *[FSR2+k6]=W;",
+      "Note: *FSR same as INDF. When z affected needs checking"
+    ]
+  }
+}
+

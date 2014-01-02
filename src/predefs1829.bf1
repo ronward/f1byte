@@ -4,8 +4,10 @@ defFile(INDF1, 0x01);
 defFile(PCL, 0x02);
 defFile(STATUS, 0x03);
  defBit(C, STATUS.0);
+ defBit(Carry, STATUS.0);
  defBit(DC, STATUS.1);
  defBit(Z, STATUS.2);
+ defBit(Zero, STATUS.2);
  defBit(PD, STATUS.3);			// -PowerDown
  defBit(TO, STATUS.4);			// -TimeOut
 defFile(FSR0L, 0x04);

@@ -6,9 +6,11 @@
     , f1
     , compiler
     , ids={}
-    , currentAddress=0
-    , code=[], labels={}
+    , currentAddress=0, code=[]
+    , labels={}
     , error
+    , addCode
+    , getLabelId
     , assertLabelDefined, assertIsFileIdent
     , assertIsFileOrNumberIdent, assertDestAndSrcAreValid
     , processInstructions, resolveLabels
@@ -18,8 +20,9 @@
     , procInst
     , handleInsts
     , WREG=0x09
-    , toHex, nop=function(){}
-    , testSrc, test
+    , hrtime
+    , toHex, toBin, nop=function(){}
+    , test
   ;
   fs = require("fs");
   log = console.log;
@@ -32,9 +35,6 @@
   compiler = {};
   // options.ids = {all:{}, consts:{}, files:{}, bits:{}, addresses:{}}
   // "predefs.bf1"
-  testSrc = "defFile(STATUS,0x03);defBit(C,STATUS.0);defBit(Carry,STATUS.0);defBit(Z,STATUS.2);defBit(Zero,STATUS.2);";
-  testSrc += "\n nop;clrWdt;sleep;reset;retfie;return;return 32;option(w);trisA(w);";
-  testSrc += "start: goto start; start(); setPCLATH(start); setPCLATH(1);";
 
   compiler.processFile = function(filename){
     var src;
@@ -43,11 +43,30 @@
   };
 
   compiler.processStr = function(src){
-    var results;
+    var results, st, secs;
+    st = hrtime();
     results = pegParser.parse(src, {ids:ids});
     processInstructions(results.instDirects);
     resolveLabels();
+    secs = hrtime()-st;
+    log("Done in", secs);
   };
+
+  hrtime = function(){
+    var hr = process.hrtime();
+    return hr[0]+(hr[1]/1000000000);
+  };
+
+  addCode = function(data){
+    code[currentAddress] = data;
+    currentAddress+=1;
+  };
+
+  getLabelId = function(){
+    getLabelId.count += 1;
+    return getLabelId.count;
+  };
+  getLabelId.count=0;
 
   error = function(msg, inst){
     if(inst){
@@ -130,8 +149,8 @@
     // asfr W=f>>1; f=f>>1;      "Arithemtic Right Shift" W|f = f>>1, f7->f6, f0->c
     // lslf W=f<<1; f=f<<1;      W|f = f<<1 (f7->c, 0->f0)
     // lsrf W=f>>>1; f=f>>>1;    W|f = f>>1 (f0->c, 0->f7)
-    assertDestAndSrcAreValid(inst.destId, inst.srcId);
-    if(inst.destId.isW){
+    assertDestAndSrcAreValid(inst.dest, inst.src);
+    if(inst.dest.isW){
       processWAssignmentInst(inst);
     } else if(inst.dest.subType==="file"){
       processFileAssignmentInst(inst);
@@ -168,8 +187,7 @@
       } else if(ex){
         error("'"+ex+"' unexpected!");
       }
-      code[currentAddress] = opcode | (value & 0xFF);
-      currentAddress += 1;
+      addCode(opcode | (value & 0xFF));
     } else if(srcId.subType==="file"){
       // movf   W=f;        (d=0)
       // addwf  W+=f;       (d=0)
@@ -185,8 +203,7 @@
           error("Unexpected opcode for W assignment (file)!");
         }
         opcode = f1[opcode].opcode;
-        code[currentAddress] = opcode | (value & 0x7F);
-        currentAddress += 1;
+        addCode(opcode | (value & 0x7F));
       } else {  // ex
         // subwf  [W=f-W];*   (d=0)
         // decf   W=f-1;*     (d=0)
@@ -199,13 +216,11 @@
             error("Instruction '"+inst.text+"' not supported!", inst);
           }
           opcode = f1[opcode].opcode;
-          code[currentAddress] = opcode | (value & 0x7F);
-          currentAddress += 1;
+          addCode(opcode | (value & 0x7F));
         } else if(op==="+=" && ex==="+C"){
           // addwfc W+=f+C;     (d=0)
           opcode = f1.addwfc.opcode;
-          code[currentAddress] = opcode | (value & 0x7F);
-          currentAddress += 1;
+          addCode(opcode | (value & 0x7F));
         } else {
           error("Instruction '"+inst.text+"' not supported!", inst);
         }
@@ -221,8 +236,8 @@
     destId = inst.dest;
     srcId = inst.src;
     op = inst.op;
-    value = srcId.value;
     ex = inst.ex.replace("-B", "+C");
+    value = destId.value;
     if(srcId.isW){
       if(!ex){
         // movwf  f=W; 
@@ -236,41 +251,82 @@
           error("Instruction '"+inst.text+"' not supported!", inst);
         }
         opcode = f1[opcode].opcode | (op==="="?0:0x80);
-        code[currentAddress] = opcode | (value & 0x7F);
-        currentAddress += 1;
+        addCode(opcode | (value & 0x7F));
       } else if(ex==="+C" && (op==="+=" || op==="-=")){
         // addwfc f+=W+C;     (d=1)
         // subwfb f-=W-B;     (d=1)   (f-=W+C)
         opcode = {"+=":"addwfc", "-=":"subwfb"}[op];
         opcode = f1[opcode].opcode | 0x80;
-        code[currentAddress] = opcode | (value & 0x7F);
-        currentAddress += 1;
+        addCode(opcode | (value & 0x7F));
       } else {
         error("Instruction '"+inst.text+"' not supported!", inst);          
       }
-    } else if(srcId.isNumber && value===1 && (op==="-=" || op==="+=")){
+    } else if(srcId.isNumber && srcId.value===1 && (op==="-=" || op==="+=")){
       // incf   f+=1;       (d=1)
       // decf   f-=1;       (d=1)
       opcode = {"+=":"incf", "-=":"decf"}[op];
       opcode = f1[opcode].opcode | 0x80;
-      code[currentAddress] = opcode | (value & 0x7F);
-      currentAddress += 1;
-    } else if(srcId.isNumber && value===0xFF && op==="^="){
+      addCode(opcode | (value & 0x7F));
+    } else if(srcId.isNumber && srcId.value===0xFF && op==="^="){
       // comf   f^=0xFF;    (d=1)
       opcode = f1.comf.opcode | 0x80;
-      code[currentAddress] = opcode | (value & 0x7F);
-      currentAddress += 1;
+      addCode(opcode | (value & 0x7F));
     } else {
       error("Instruction '"+inst.text+"' not supported!", inst);          
     }
   };
 
   processIfInstruction = function(inst){
-    // not = true:false
+    // NOTE: skipIfZero cannot be reversed
+    // if(w=f),  if(w=f+1),  if(w=f-1)
+    // if(f+=1), if(f-=1)
+    // if(fb==0), if(fb!=0)
+    // if(b==1), if(b!=1)
+    // not = true|false
     // bitClrSet = "BitClr" | "BitSet" (|"Not"|null)
-    // pre = ("+="|"-="|"=="|"!=") 0|1
+    // wAssign = true|false
+    // pre = ("+="|"-="|"=="|"!="|"+"|"-") 0|1
     // ident = 'file'|'bit'  (|isNumber)
-
+    var ident, labelId, thenLabel, eofThenLabel, eofElseLabel, block, elseBlock, not, c;
+    labelId = getLabelId();
+    thenLabel = "_then_" + labelId;
+    eofThenLabel = "_eofThen_" + labelId;
+    eofElseLabel = "_eofElse_" + labelId;
+    ident = inst.ident;
+    block = inst.block;
+    elseBlock = inst.elseBlock;
+    not = inst.not;
+    if(block.length===0 && elseBlock.length>0){
+      block = elseBlock;
+      elseBlock = [];
+      not = !not;
+    }
+    if(!inst.wAssign && !inst.pre){
+      if(ident.subType==="file"){
+        addCode(f1.movf.opcode | 0x80 | (ident.value & 0x7F));  // test it
+        not = !not; // if not Zero
+        c = not?"btfsc":"btfss";  // ZeroFlag = STATUS:0x03 Z:0x02<<7 = (0x103)
+        addCode(f1[c].opcode | 0x103);
+        addCode({inst:"goto", name:eofThenLabel, from:currentAddress});
+      } else if(ident.subType==="bit"){
+        c = not?"btfsc":"btfss";
+        addCode(f1[c].opcode | ((ident.bit.value & 7)<<7) | (ident.fileIdent.value & 0x7F));
+        addCode({inst:"goto", name:eofThenLabel, from:currentAddress});
+      } else {
+        error("Expected a 'bit' or 'file' identifier!", inst);
+      }
+    } else {
+      error("Instruction '"+inst.text+"' not supported yet!", inst);          
+    }
+    processInstructions(block);
+    if(elseBlock && elseBlock.length>0){
+      addCode({inst:"goto", name:eofElseLabel, from:currentAddress});
+      labels[eofThenLabel] = currentAddress;
+      processInstructions(elseBlock);
+      labels[eofElseLabel] = currentAddress;
+    } else {
+      labels[eofThenLabel] = currentAddress;
+    }
   };
 
   procInst = function(inst){
@@ -279,8 +335,7 @@
     subType = inst.subType.toLowerCase();
     info = f1[subType];
     //log(inst.type, inst.subType, info);
-    code[currentAddress] = info.opcode;
-    currentAddress += 1;
+    addCode(info.opcode);
   };
 
   handleInsts = { 
@@ -298,76 +353,70 @@
         } else {
           error("Unexpected Identifier subType:'"+ident.subType+"'", inst);
         }
-        code[currentAddress]=f1.movlb.opcode | (num & 0x1F);
-        currentAddress+=1;
+        addCode(f1.movlb.opcode | (num & 0x1F));
       }
     , setpclath: function(inst){ var ident=inst.ident, num;
         if(ident.constType==="number" || ident.type==="number"){
           num = ident.value;
-          code[currentAddress]=f1.movlp.opcode | (num & 0xFF);
+          addCode(f1.movlp.opcode | (num & 0xFF));
         } else if(ident.subType==="address"){
           assertLabelDefined(inst); 
-          code[currentAddress]={inst:"setpclath", name:inst.ident.name
-                                , from:currentAddress};
+          addCode({inst:"setpclath", name:inst.ident.name, from:currentAddress});
         } else {
             error("Unexpected Identifier subType:'"+ident.subType+"'", inst);
         }
-        currentAddress+=1;
       }
     , clr:function(inst){ var ident=inst.ident;
         assertIsFileIdent(ident, inst);
         if(ident.isW){
-          code[currentAddress]=f1.clrw.opcode;
+          addCode(f1.clrw.opcode);
         } else {
-          code[currentAddress]=f1.clrf.opcode | (ident.value & 0x7F);
+          addCode(f1.clrf.opcode | (ident.value & 0x7F));
         }
-        currentAddress+=1;
       }
     , com:function(inst){ var ident=inst.ident;
         assertIsFileIdent(ident, inst);
         if(ident.isW){
-          code[currentAddress]=f1.comf.opcode | WREG;
+          addCode(f1.comf.opcode | WREG);
         } else {
-          code[currentAddress]=f1.comf.opcode | 0x80 | (ident.value & 0x7F);
+          addCode(f1.comf.opcode | 0x80 | (ident.value & 0x7F));
         }
-        currentAddress+=1;
       }
     , test:function(inst){ var ident=inst.ident;
         assertIsFileIdent(ident, inst);
         if(ident.isW){
-          code[currentAddress]=f1.movf.opcode | WREG;
+          addCode(f1.movf.opcode | WREG);
         } else {
-          code[currentAddress]=f1.movf.opcode | 0x80 | (ident.value & 0x7F);
+          addCode(f1.movf.opcode | 0x80 | (ident.value & 0x7F));
         }
-        currentAddress+=1;
       }
     , "goto": function(inst){ 
         assertLabelDefined(inst); 
-        code[currentAddress]={inst:"goto", name:inst.ident.name
-                              , from:currentAddress};
-        currentAddress+=1;
+        addCode({inst:"goto", name:inst.ident.name, from:currentAddress});
       }
     , "call": function(inst){
         assertLabelDefined(inst); 
-        code[currentAddress]={inst:"call", name:inst.ident.name
-                              , from:currentAddress};
-        currentAddress+=1;
+        addCode({inst:"call", name:inst.ident.name, from:currentAddress});
       }
     , "return": function(inst){ var ident=inst.ident;
         if(ident){
           if(ident.constType==="number" || ident.type==="number"){
-            code[currentAddress]=f1.retlw.opcode | (ident.value & 255);
+            addCode(f1.retlw.opcode | (ident.value & 255));
           } else {
             error("Unexpected Identifier type:'"+ident.subType+"' ", inst);
           } 
         } else {
-          code[currentAddress]=f1["return"].opcode;
+          addCode(f1["return"].opcode);
         }
-        currentAddress+=1;
       }
     , "retfie": function(inst){
-        code[currentAddress]=f1.retfie.opcode;
-        currentAddress+=1;
+        addCode(f1.retfie.opcode);
+      }
+    , "bitclr": function(inst){ var ident=inst.ident;
+        addCode(f1.bcf.opcode | ((ident.bit.value & 7)<<7) | (ident.fileIdent.value & 0x7F));
+      }
+    , "bitset": function(inst){ var ident=inst.ident;
+        addCode(f1.bsf.opcode | ((ident.bit.value & 7)<<7) | (ident.fileIdent.value & 0x7F));
       }
   };
 
@@ -377,9 +426,9 @@
       c = code[i];
       if(c.inst){
         if(c.inst==="call"){
-          code[i] = f1.call | (labels[c.name] & 0x07FF);
+          code[i] = f1.call.opcode | (labels[c.name] & 0x07FF);
         } else if(c.inst==="goto"){
-          code[i] = f1.goto | (labels[c.name] & 0x07FF);
+          code[i] = f1.goto.opcode | (labels[c.name] & 0x07FF);
         } else if(c.inst==="setpclath"){
           code[i] = f1.movlp.opcode | (labels[c.name] >> 8);
         } else {
@@ -394,12 +443,31 @@
     return ("000"+n.toString(16).toUpperCase()).substr(-size);
   };
 
+  toBin = function(n, size){
+    var s;
+    size = size | 14;
+    s = ("00000000000000"+n.toString(2)).substr(-size);
+    s = s.substr(0,2)+" "+s.substr(2,4)+" "+s.substr(6,4)+" "+s.substr(10,4);
+    return s;
+  };
+
   // Test
   test = function(){
-    var i, c;
+    var i, c, testSrc;
+    if(true){
+      testSrc = fs.readFileSync("predefs1829.bf1");
+    } else {
+      testSrc = "defFile(STATUS,0x03);defBit(C,STATUS.0);defBit(Carry,STATUS.0);defBit(Z,STATUS.2);defBit(Zero,STATUS.2);";
+    }
+    testSrc += "defFile(f,0x42);defBit(b1, f.1);defBit(b2, f.2);\n";
+    testSrc += "nop;clrWdt;sleep;reset;retfie;return;return 32;option(w);trisA(w);\n";
+    testSrc += "start: goto start; start(); setPCLATH(start); setPCLATH(1);nop();\n";
+    testSrc += "b2.set();b2.clr();nop();f+=1;nop();\n";
+    testSrc += "if(b2){reset();}else{clrWdt();}nop();\n";
+    testSrc += "if(f){reset();}nop();\n";
     compiler.processStr(testSrc);
     for(i=0; i<code.length; i+=1){
-      log(toHex(i), " ", toHex(code[i]));
+      log(toHex(i), " ", toHex(code[i]), " ", toBin(code[i]));
     }
     log(labels);
   };

@@ -55,7 +55,7 @@
     return {type:"inst", subType:subType, ident:id, line:line(), column:column(), text:text().trim()};
   }
   if(!ids.all.W){
-    wIdent = {type:"ident", subType:"file", name:"W", isW:true};
+    wIdent = {type:"ident", subType:"file", name:"W", isW:true, value:0x09};
     addIdent(wIdent);
     wIdent.name = "w";
     addIdent(wIdent);
@@ -63,10 +63,8 @@
   comments = [];
 }
 
-start = statements
-
-statementsx = xxxx
-xxxx = "xxxx"
+start = instDirects:statements
+ { return {instDirects:instDirects, idents:ids, comments:comments}; }
 
 statements = ws? s:(def / setAddress / lineComment / blockComment
                 / blockStatement / statement)* 
@@ -75,10 +73,11 @@ statements = ws? s:(def / setAddress / lineComment / blockComment
   instDirects = s.filter(function(obj){
     return obj.type==="inst" || obj.type==="directive";
   });
-  return {instDirects:instDirects, s:s, idents:ids, comments:comments};
+  //return {instDirects:instDirects, s:s, idents:ids, comments:comments};
+  return instDirects;
 }
 
-blockStatement = s:(block / if) { return s; }
+blockStatement = s:(block / if / ifBit) { return s; }
 
 statement =
  s:( nop 
@@ -222,23 +221,34 @@ assignment = dest:refIdent ws? op:("="/"+="/"-="/"&="/"^=") ws?
     return obj;
  }
 
-if = "if" ws notBitClrSet:("Not"/"BitClr"/"BitSet")? 
- lbrkt ident:("Borrow"/bitIdent/refIdent)? pre:(("+="/"-="/"=="/"!=") ws? [01])?
+if = "if" not:(ws "Not"i)? lbrkt n:(("!"/"not"i ws) ws?)? w:("w"i ws? "=" ws?)? ident:("Borrow"/bitIdent/refIdent)? pre:(("+="/"-="/"=="/"!="/"+"/"-") ws? [01])?
  rbrkt block:block elseBlock:elseBlock?
  { // if no cmp & ident is 'bit' then 'BitSet', or is 'file' then 'NotZero'
-   var not, ifText = text().split(")")[0]+")";
-   not = notBitClrSet==="Not";
+   var ifText = text().split(")")[0]+")";
+   not = n?!not:!!not;
    if(pre) { pre = pre[0]+pre[2]; } 
    if(ident==="Borrow") { ident=getIdent("Carry"); not=!not; }
-   return {type:"inst", subType:"if", not:!!not, bitClrSet:notBitClrSet,
-           ident:ident, pre:pre, line:line(), column:column(), text:ifText};
+   return {type:"inst", subType:"if", not:not, wAssign:!!w,
+           ident:ident, pre:pre, block:block, elseBlock:elseBlock,
+           line:line(), column:column(), text:ifText};
+ }
+ifBit = "if" ws not:("Not" ws?)? "Bit" t:("Set"/"Clr") lbrkt ident:refIdent rbrkt 
+ block:block elseBlock:elseBlock?
+ { var ifText = text().split(")")[0]+")";
+   if(ident.subType!=="bit"){ 
+     error("Expected 'bit' identifier, but found '"+ident.name+"'");
+   }
+   if(t==="Clr") { not=!not; }
+   return {type:"inst", subType:"if", not:!!not, wAssign:false,
+           ident:ident, pre:"", block:block, elseBlock:elseBlock,
+           line:line(), column:column(), text:ifText};
  }
 
 bitClrSet = &(ident ws? "." ws? (ident/number ".")? ws?
               ("set"/"Set"/"clr"/"Clr") lrbrkt? end)
  bitIdent:bitIdent ws? "." ws? t:("set"i/"clr"i) lrbrkt? end
  { 
-   return {type:"inst", subType:"bit"+t.toLowerCase(), bitIdent:bitIdent,
+   return {type:"inst", subType:"bit"+t.toLowerCase(), ident:bitIdent,
            line:line(), column:column(), text:text().trim()}; 
  }
 

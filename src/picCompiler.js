@@ -43,7 +43,8 @@
   };
 
   compiler.processStr = function(src){
-    var results, st, secs;
+    var results, st, secs, predefs;
+    predefs = fs.readFileSync("predefs1829.bf1");
     st = hrtime();
     results = pegParser.parse(src, {ids:ids});
     processInstructions(results.instDirects);

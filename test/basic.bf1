@@ -44,9 +44,10 @@ xdelay:
 xdelayLoop:
  w-=1;
  i100();
- ifNotZero() { goto xdelayLoop; }
+ if(!Zero) { goto xdelayLoop; }
  return;
 
+setAddress(0x0020);
 main:
  W=0xFD;
  trisA(W);	// output on RA2

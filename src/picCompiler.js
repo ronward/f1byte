@@ -6,6 +6,8 @@
     , f1
     , compiler
     , ids={}
+    , dataObj={ids:ids}
+    , predefs=false
     , currentAddress=0, code=[]
     , labels={}
     , error
@@ -21,8 +23,6 @@
     , handleInsts
     , WREG=0x09
     , hrtime
-    , toHex, toBin, nop=function(){}
-    , test
   ;
   fs = require("fs");
   log = console.log;
@@ -43,20 +43,19 @@
   };
 
   compiler.processStr = function(src){
-    var results, st, secs, predefs;
-    predefs = fs.readFileSync("predefs1829.bf1");
+    var results, st, secs, predefstr;
     st = hrtime();
-    results = pegParser.parse(src, {ids:ids});
+    if(predefs===false){
+      predefstr = fs.readFileSync("predefs1829.bf1") + "\n";
+      results = pegParser.parse(predefstr, dataObj);  //{ids:ids});
+    }
+    results = pegParser.parse(src, dataObj);  //{ids:ids});
     processInstructions(results.instDirects);
     resolveLabels();
     secs = hrtime()-st;
-    log("Done in", secs);
+    return {code:code, processTime:secs, labels:labels};
   };
 
-  hrtime = function(){
-    var hr = process.hrtime();
-    return hr[0]+(hr[1]/1000000000);
-  };
 
   addCode = function(data){
     code[currentAddress] = data;
@@ -138,6 +137,7 @@
       labels[dir.ident.name]=currentAddress;
     } else if(subType==="setAddress"){
       log("--setAddress--", dir);
+      currentAddress = dir.num.value;
     } else {
       error("Directive subType:'"+subType+"' is unhandled!", dir);
     }
@@ -425,7 +425,7 @@
     var i, c;
     for(i=0; i<code.length; i+=1){
       c = code[i];
-      if(c.inst){
+      if(c && c.inst){
         if(c.inst==="call"){
           code[i] = f1.call.opcode | (labels[c.name] & 0x07FF);
         } else if(c.inst==="goto"){
@@ -439,12 +439,18 @@
     }
   };
 
-  toHex = function(n, size){
+  hrtime = function(){
+    var hr = process.hrtime();
+    return hr[0]+(hr[1]/1000000000);
+  };
+  compiler.hrtime = hrtime;
+
+  compiler.toHex = function(n, size){
     size = size | 4;
     return ("000"+n.toString(16).toUpperCase()).substr(-size);
   };
 
-  toBin = function(n, size){
+  compiler.toBin = function(n, size){
     var s;
     size = size | 14;
     s = ("00000000000000"+n.toString(2)).substr(-size);
@@ -452,27 +458,6 @@
     return s;
   };
 
-  // Test
-  test = function(){
-    var i, c, testSrc;
-    if(true){
-      testSrc = fs.readFileSync("predefs1829.bf1");
-    } else {
-      testSrc = "defFile(STATUS,0x03);defBit(C,STATUS.0);defBit(Carry,STATUS.0);defBit(Z,STATUS.2);defBit(Zero,STATUS.2);";
-    }
-    testSrc += "defFile(f,0x42);defBit(b1, f.1);defBit(b2, f.2);\n";
-    testSrc += "nop;clrWdt;sleep;reset;retfie;return;return 32;option(w);trisA(w);\n";
-    testSrc += "start: goto start; start(); setPCLATH(start); setPCLATH(1);nop();\n";
-    testSrc += "b2.set();b2.clr();nop();f+=1;nop();\n";
-    testSrc += "if(b2){reset();}else{clrWdt();}nop();\n";
-    testSrc += "if(f){reset();}nop();\n";
-    compiler.processStr(testSrc);
-    for(i=0; i<code.length; i+=1){
-      log(toHex(i), " ", toHex(code[i]), " ", toBin(code[i]));
-    }
-    log(labels);
-  };
-  test();
   
-  //modules.export = compiler;
+  module.exports = compiler;
 }());

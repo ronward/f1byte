@@ -1,0 +1,167 @@
+
+PIC16F1825	8KW	256EE	1024RAM	12IO	8A/D	8Cap	2Comp
+PIC16F1829	8KW	256EE	1024RAM 18IO	12A/D	12Cap	2Comp
+
+16 level stack
+
+0x0000 	Reset Vector (Page 0)
+0x0004	Interrupt Vector
+0x0800	Page 1
+0x1000	Page 2
+0x1800	Page 3
+0x2000	End
+
+RAM
+00-0B	Core Registers
+  00 INDF0	What is pointed to by FSR0
+  01 INDF1	What is pointer to by FSR1
+  02 PCL	Program Counter Low Byte
+  03 STATUS
+  04 FSR0L
+  05 FSR0H
+  06 FSR1L
+  07 FSR1H
+  08 BSR	Bank Select Reg (24Banks in total 0-23Dec)
+  09 WREG
+  0A PCLATH	Program Conuter High Byte Latch
+  0B INTCON
+0C-1F	SFR (Special Function Registers)
+20-6F	RAM
+70-7F	Common RAM
+
+  0C PORTA	8C TRISA
+  0D PORTB	8D TRISB
+  0E PORTC	8E TRISC
+
+		95 OPTION REG
+
+Status Reg
+	4 - -TO (0=A WDT time-out occurred, 1=After power-up, CLRWDT or SLEEP)
+	3 - -PD	(0=SLEEP, 1=power-up or CLRWDT)
+	2 - Z 	(1=Zero)
+	1 - DC
+	0 - C (-Borrow)
+
+CLOCK	(Note: default after reset is 500 kHz)
+FOSC<2:0>	(Configuration Word1)
+IRCF<3:0>	(OSCCON Reg - Prescaler selector - 0111 after reset)
+SCS<1:0>	(OSCCON Reg) Note: SCS bits must be set to 00 to use the 4xPLL with internal OSC
+LFINTOSC	(31 kHz)
+MFINTOSC	(500 kHz)
+HFINTOSC	(16 MHz)
+Prescaler 
+4xPLL	(PLLEN Configuraton Word2)		
+
+
+0x8007 Config1 - 0x3FC4 (WDT-disabled), 0x3FDC (WDT-enabled)
+       Bits 0,1&2 OSC (100-INTOSC), Bits3&4-WDT, Bit5-(0=PowerUpTimer enabled)
+       Bit12 IESO (1=Internal/External switchover mode enabled)
+0x8008 Config2 - 0x3FFF, 0x3EFF(No 4xPLL), 0x3DFF(No StackReset), 
+                 0x3CFF(No 4xPLL & No StackReset)
+
+
+
+==================================================================
+
+    Memory Map
+    0X0000 - 0x1FFF -Program Memory
+    0x8000 - User ID Location
+    0x8001 - User ID Location
+    0x8002 - User ID Location
+    0x8003 - User ID Location
+    0x8004 - Reserved
+    0x8005 - Reserved
+    0x8006 - Device ID                  - bits 0-4 (Rev# bits), bits 5-13 (Device ID bits)
+    0x8007 - Config Word1
+    0x8008 - Config Wrod2
+    0x8009 - Calibration Word1          - Factory calibrated
+    0x800A - Calibration Word2          - Factory calibrated
+    0x800B > Reserved
+    Device ID   -  F1825 - 10 0111 011 (0x13B), F1829 - 10 0111 111 (0x13F)
+    Config Word1 -              (Default 11 1111 1101 1100 - 0x3FDC)
+        0 - 2   - FOSC          (Default INTOSC - 100)
+                                111 - ECH - External Clock High Power mode (CLKIN pin)
+                                110 - ECM - External Clock Medium Power mode (CLKIN pin)
+                                101 - ECL - External Clock Low-Power mode (CLKIN pin)
+                                100 - INTOSC - I/O function on Osc1 pin
+                                011 - EXTRC - RC functon on Osc1 pin
+                                010 - HS oscillator - High-speed crystal/resontor (osc1 & osc2 pins)
+                                001 - XT oscillator - Crystal/resonator (osc1 & osc2 pins)
+                                000 - LP oscillator - Low power crystal (osc1 & osc2 pins)
+        3 & 4   - WDTE          (Watchdog Timer Enable) (Default 11)
+                                11 - WDT enabled
+                                10 - WDT enabled while running and disabled in Sleep
+                                01 - WDT controlled by the SWDTEN bin in the WDTCON Reg.
+                                00 - WDT disabled
+        5       - -PWRTE        (Power-up Timer Enable) 1=PWRT disabled, 0=PWRT enabled (Default 0)
+        6       -  MCLRE        -MCLR pin function (If LVP then this bit is ignored)
+        7       - -CPD          (Code Protection) 1=Program memory code protection is disabled
+        8       - -CPD          (Data Code Protection) 1=Data memory code protection is disabled
+        9 & 10  - BOREN         (Brown-out Reset enable bits) (Default 11)
+                                11 - BOR enabled
+                                10 - BOR enabled during operation and disabled in Sleep
+                                01 - BOR controlled by SBORED bin to the PCON Reg.
+                                00 - BOR disabled
+        11      - -CLKOUTEN     (Clock Out Enable bit) 1=CLKOUT function is disabled, 0=CLKOUT function is enabled on CLKOUT pin 
+                                (Default 1)
+        12      - IESO          (Interanl External Switchover bit) 1=Internal/External Switchover mode is enabled (Default 1?)
+        13      - FCMEN         (Fail-Safe Clock Monitor Enable bit) 1=Fail-Safe Clock Monitor is enabled (Default 1)
+    Config Word2 -              (Default 11 1111 1111 1111 - 0x3FFF) OR for no 4xPLL (11 1110 1111 111 - 0x3EFF)
+        0 & 1   - WRT           (Flash Memory Self-Write Protection bits)
+                                (for 8KW 11=Write protection off, 10=0-01FF protected, 01=0-07FF protected, 00=0-1FFF proctedted)
+        2       - Unused        1
+        3       - Unused        1
+        4       - Reserved      1
+        5       - Unused        1
+        6       - Unused        1
+        7       - Unused        1
+        8       - PLLEN         1 (1=PLL Enable - 4xPLL enable)                   0x0100
+        9       - STVREN        1 (1=Stack Overflow/Underflow Reset Enable)       0x0200
+        10      - BORV          1 (1=Brown-out Reset voltage, low trip point)     0x0400
+        11      - Unused        1
+        12      - -DEBUG        1 (1=In-Circuit Debugger disabled)                0x1000
+        13      - LVP           1 (1=Low-Voltage Programming Enable bit)          0x2000
+
+    32 Bit key '0100 1101 0100 0011 0100 1000 0101 0000' - 0x4D434850 (or 'MCHP') - (LSB first) (Note: 33 Clk cycles required - last one no/any data)
+
+    Commands (6 Bits and only the first 5 count)
+        Load Configuration                  0x00 (1uS) +(0,14Data,0)            - Sets Address to 0x8000 plus loads data to be written
+        Load Data for Program Memory        0x02 (1uS) +(0,14Data,0)            - load data into the program data latch
+        Load Data for Data Memory           0x03 (1uS) +(0,8Data,6Zero,0)
+        Read Data from Program Memory       0x04 (1uS) +(0,14Data,0)
+        Read Data from Data Memory          0x05 (1uS) +(0,8Data,6Zero,0)
+        Increment Address                   0x06 
+        Reset Address                       0x16                                - Sets Address to 0x0000
+        Begin Internally Timed Programming  0x08                                - (Note: load data or load configuration command first) Wait 2.5mS 
+                                                                                - Also note prog memory is not erased first (eeprom is erased first)
+        //#Begin Externally Timed Programming  0x18
+        //#End Externally Timed Programming    0x0A 
+        //Bulk Erase Program Memory           0x09   See notes*                   - 
+        //Bulk Erase Data Memory              0x0B                                - 
+        Row Erase Program Memory            0x11                                - Row size for (1825 & 1829 is 32 Words & 32 Latches)
+
+    Multiple-Word programming (a Row of Latches at a time)
+        All data must be within the programming row boudary 
+        LoadProgData, incAdd, (repeat upto 31 (32 total) times)
+        BeginTimedProg
+
+    VDD (min) for Read/Write and Row Erase 2.1Volts
+    VDD (min) for Bulk Erase 2.7Volts
+    Programming current 3mA
+    TDLY  - 1uS
+    TENTS - 100nS (& TCLK, TCKH, TDS, TDH, TCO, TLZD, THZD)
+    TENTH - 250nS
+    TERAB (Bulk Erase cycle time) - 5mS
+    TERAR (Row Erase cycle time)  - 2.5mS
+    TPINT (Internally timed programming operation) 
+            - 2.5mS Program memory
+            - 5mS Configuration Words
+            - 5mS EEPROM
+    TPEXT (Externally timed programming operation) 1mS(Min) - 2.1mS(Max)
+    TDIS - 300uS  (Time delay from program to compare (HV discharge time))
+    TEXIT - 1uS
+
+    HEX file - In the hex file there are two bytes per program word stored in Intel INHX32 hex format.
+    Data is stored LSB first, MSB second. (0x8000 will map to 0x100000 in the hex file)
+    EE data is mapped to 0x1E000-0x1E1FF in the hex file (one byte per one byte)
+

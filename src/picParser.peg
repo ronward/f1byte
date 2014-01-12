@@ -85,6 +85,7 @@ statement =
   / clr / test / option / tris / reset / callCall / call
   / assignment
   / bitClrSet
+  / repeat
   / unexpected 
  ) { return s; }
 
@@ -250,6 +251,12 @@ bitClrSet = &(ident ws? "." ws? (ident/number ".")? ws?
  { 
    return {type:"inst", subType:"bit"+t.toLowerCase(), ident:bitIdent,
            line:line(), column:column(), text:text().trim()}; 
+ }
+
+repeat = "repeat" lbrkt x:(refIdent/number) rbrkt block:block
+ {
+   return {type:"inst", subType:"repeat", ident:x, block:block,
+           line:line(), column:column(), text:text().trim()};
  }
 
 block = lbrace statements:statements rbrace { return statements; }

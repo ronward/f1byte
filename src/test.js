@@ -20,6 +20,9 @@
     } else {
       log("-- Using test string --");
       src = "defFile(f,0x42);defBit(b1, f.1);defBit(b2, f.2);\n";
+      src += "nop;\n";
+      src += "repeat(3){ nop; } \n";
+      src += "repeat(f){ nop; }\n";
       src += "nop;clrWdt;sleep;reset;retfie;return;return 32;option(w);trisA(w);\n";
       src += "start: goto start; start(); setPCLATH(start); setPCLATH(1);nop();\n";
       src += "b2.set();b2.clr();nop();f+=1;nop();\n";

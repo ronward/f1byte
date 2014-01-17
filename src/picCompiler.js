@@ -50,8 +50,8 @@
       try {
         results = pegParser.parse(predefstr, dataObj);  //{ids:ids});
       } catch(e) {
-      log(e.name+":"+e.message+"\t(at line:"+e.line+", column:"+e.column+")");
-      process.exit(1);
+        log(e.name+":"+e.message+"\t(at line:"+e.line+", column:"+e.column+")");
+        process.exit(1);
       }
     }
     try {
@@ -186,7 +186,7 @@
       // xorlw  W^=#;
       //        W-=#;  (implemtent as W+=-#)
       opcode = {"=":"movlw", "+=":"addlw", "&=":"andlw", "|=":"iorlw", "^=":"xorlw", "-=":"addlw"}[op];
-      if(!opcode){ 
+      if(!opcode){
         error("Unexpected opcode for W assignment (immediate)!", inst);
       }
       opcode = f1[opcode].opcode;
@@ -251,7 +251,7 @@
     value = destId.value;
     if(srcId.isW){
       if(!ex){
-        // movwf  f=W; 
+        // movwf  f=W;
         // addwf  f+=W;       (d=1)
         // subwf  f-=W;       (d=1)
         // andwf  f&=W;       (d=1)
@@ -270,7 +270,7 @@
         opcode = f1[opcode].opcode | 0x80;
         addCode(opcode | (value & 0x7F));
       } else {
-        error("Instruction '"+inst.text+"' not supported!", inst);          
+        error("Instruction '"+inst.text+"' not supported!", inst);
       }
     } else if(srcId.isNumber && srcId.value===1 && (op==="-=" || op==="+=")){
       // incf   f+=1;       (d=1)
@@ -283,7 +283,7 @@
       opcode = f1.comf.opcode | 0x80;
       addCode(opcode | (value & 0x7F));
     } else {
-      error("Instruction '"+inst.text+"' not supported!", inst);          
+      error("Instruction '"+inst.text+"' not supported!", inst);
     }
   };
 
@@ -327,7 +327,7 @@
         error("Expected a 'bit' or 'file' identifier!", inst);
       }
     } else {
-      error("Instruction '"+inst.text+"' not supported yet!", inst);          
+      error("Instruction '"+inst.text+"' not supported yet!", inst);
     }
     processInstructions(block);
     if(elseBlock && elseBlock.length>0){
@@ -349,7 +349,7 @@
     addCode(info.opcode);
   };
 
-  handleInsts = { 
+  handleInsts = {
     nop:procInst, clrwdt:procInst, sleep:procInst
     , reset:procInst
     , option:procInst
@@ -371,7 +371,7 @@
           num = ident.value;
           addCode(f1.movlp.opcode | (num & 0xFF));
         } else if(ident.subType==="address"){
-          assertLabelDefined(inst); 
+          assertLabelDefined(inst);
           addCode({inst:"setpclath", name:inst.ident.name, from:currentAddress});
         } else {
             error("Unexpected Identifier subType:'"+ident.subType+"'", inst);
@@ -401,12 +401,12 @@
           addCode(f1.movf.opcode | 0x80 | (ident.value & 0x7F));
         }
       }
-    , "goto": function(inst){ 
-        assertLabelDefined(inst); 
+    , "goto": function(inst){
+        assertLabelDefined(inst);
         addCode({inst:"goto", name:inst.ident.name, from:currentAddress});
       }
     , "call": function(inst){
-        assertLabelDefined(inst); 
+        assertLabelDefined(inst);
         addCode({inst:"call", name:inst.ident.name, from:currentAddress});
       }
     , "return": function(inst){ var ident=inst.ident;
@@ -415,7 +415,7 @@
             addCode(f1.retlw.opcode | (ident.value & 255));
           } else {
             error("Unexpected Identifier type:'"+ident.subType+"' ", inst);
-          } 
+          }
         } else {
           addCode(f1["return"].opcode);
         }
@@ -429,7 +429,7 @@
     , "bitset": function(inst){ var ident=inst.ident;
         addCode(f1.bsf.opcode | ((ident.bit.value & 7)<<7) | (ident.fileIdent.value & 0x7F));
       }
-    , "repeat": function(inst){ 
+    , "repeat": function(inst){
         var opcode, value, labelId, rEndLabel, rLoopLabel, ident, rcounter=0x7F;
         ident=inst.ident
         labelId = getLabelId();
@@ -446,9 +446,9 @@
           opcode = f1.movlw.opcode;
           value = ident.value;
           if(value===0){ return; }
-          if(value>256){ 
+          if(value>256){
             log("Warning: repeat value is greater than 256! "+
-              " (line:"+inst.line+", column:"+inst.column+")"); 
+              " (line:"+inst.line+", column:"+inst.column+")");
           }
           value &= 0xFF;
         } else {
@@ -510,6 +510,6 @@
     return s;
   };
 
-  
+
   module.exports = compiler;
 }());

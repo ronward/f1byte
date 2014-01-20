@@ -10,6 +10,7 @@
     , predefs=false
     , currentAddress=0, code=[]
     , labels={}
+    , currentBank=0
     , error
     , addCode
     , getLabelId
@@ -17,24 +18,37 @@
     , assertIsFileOrNumberIdent, assertDestAndSrcAreValid
     , processInstructions, resolveLabels
     , processDirective, processAssignmentInst
+    , processBitAssignmentInst
     , processWAssignmentInst, processFileAssignmentInst
     , processIfInstruction
     , procInst
+    , nop, autoBank
     , handleInsts
     , WREG=0x09
     , hrtime
   ;
   fs = require("fs");
-  log = console.log;
+  log = console.log.bind(console);
   pegParser = require("./picParser");
   f1 = require("./pic16f1").instructions;  // .opcode .opEx
   Object.keys(f1).forEach(function(key){
     var inst = f1[key];
     inst.opcode = parseInt(inst.opcode, 16);
   });
+  nop = function(){};
   compiler = {};
   // options.ids = {all:{}, consts:{}, files:{}, bits:{}, addresses:{}}
   // "predefs.bf1"
+
+  compiler.reset = function(){
+    ids={};
+    dataObj={ids:ids};
+    predefs=false;
+    currentAddress=0;
+    code=[];
+    labels={};
+    getLabelId.count=0;
+  };
 
   compiler.processFile = function(filename){
     var src;
@@ -43,27 +57,44 @@
   };
 
   compiler.processStr = function(src){
-    var results, st, secs, predefstr;
+    var results, st, st2, secs, predefFile, predefstr;
     st = hrtime();
+    predefFile = __dirname+"/predefs1829.bf1";
+    //return {isError:true, message:predefFile};
     if(predefs===false){
-      predefstr = fs.readFileSync("predefs1829.bf1") + "\n";
-      try {
-        results = pegParser.parse(predefstr, dataObj);  //{ids:ids});
-      } catch(e) {
-        log(e.name+":"+e.message+"\t(at line:"+e.line+", column:"+e.column+")");
-        process.exit(1);
-      }
+//      try {
+//        dataObj = require(predefFile+".json");
+//      } catch(e) {
+//        window.alert("regenerating " + predefFile + " - "+ e.message);
+        predefstr = fs.readFileSync(predefFile) + "\n";
+        try {
+          results = pegParser.parse(predefstr, dataObj);  //{ids:ids});
+        } catch(err) {
+          log(err.name+":"+err.message+"\t(at line:"+err.line+", column:"+err.column+")");
+          err.isError = true;
+          return err;
+        }
+        fs.writeFile(predefFile+".json", JSON.stringify(dataObj));
+//      }
     }
+    st2 = hrtime();
     try {
       results = pegParser.parse(src, dataObj);  //{ids:ids});
     } catch(e) {
       log(e.name+":"+e.message+"\t(at line:"+e.line+", column:"+e.column+")");
-      process.exit(1);
+      e.isError = true;
+      return e;
     }
-    processInstructions(results.instDirects);
-    resolveLabels();
+    try {
+      processInstructions(results.instDirects);
+      resolveLabels();
+    } catch(e) {
+      e.isError = true;
+      log(e.message+"\t(at line:"+e.line+", column:"+e.column+")");
+      return e;
+    }
     secs = hrtime()-st;
-    return {code:code, processTime:secs, labels:labels};
+    return {code:code, processTime:secs, labels:labels, t2:hrtime()-st2};
   };
 
 
@@ -78,12 +109,32 @@
   };
   getLabelId.count=0;
 
-  error = function(msg, inst){
-    if(inst){
-      msg += "\n\tat line:"+inst.line+", column:"+inst.column;
+  autoBank = function(fAdd){
+    // returns a function that when called will restore the BSR
+    var t, fBank, opcode;   // movlb
+    t = fAdd & 0x7f;
+    if(t<0x0C || t>0x6F){
+      return nop;
     }
-    log("ERROR:", msg);
-    throw msg;
+    fBank = (fAdd>>7) & 0x1F;
+    if(fBank!==currentBank){
+      opcode = f1.movlb.opcode | fBank;
+      addCode(opcode);
+      opcode = f1.movlb.opcode | currentBank;
+      return addCode.bind({}, opcode);
+    } else {
+      return nop;
+    }
+  };
+
+  error = function(msg, inst){
+    var e = {message:msg};
+    if(inst){
+      //msg += "\n\tat line:"+inst.line+", column:"+inst.column;
+      e.line=inst.line;
+      e.column=inst.column;
+    }
+    throw e;
   };
 
   assertLabelDefined = function(inst){
@@ -111,7 +162,9 @@
     //    source must be a file or number
     //  if destination is file
     //    source must be 'W' or a number (1) (at least for now anyway)
-    if(destIdent.subType!=="file"){
+    if(destIdent.subType==="bit" && srcIdent.isNumber){
+      nop();  // OK
+    } else if(destIdent.subType!=="file"){
       error("Expected destination to be a 'file' identifier!", destIdent);
     } else if(destIdent.isW){
       if(!((srcIdent.subType==="file" && !srcIdent.isW) || srcIdent.isNumber)){
@@ -163,6 +216,8 @@
     assertDestAndSrcAreValid(inst.dest, inst.src);
     if(inst.dest.isW){
       processWAssignmentInst(inst);
+    } else if(inst.dest.subType==="bit"){
+      processBitAssignmentInst(inst);
     } else if(inst.dest.subType==="file"){
       processFileAssignmentInst(inst);
     } else {
@@ -170,9 +225,18 @@
     }
   };
 
+  processBitAssignmentInst = function(inst){
+    var op, ident, restore;
+    ident = inst.dest;
+    op = (inst.src.value===0)?"bcf":"bsf";
+    restore = autoBank(ident.fileIdent.value);
+    addCode(f1[op].opcode | ((ident.bit.value & 7)<<7) | (ident.fileIdent.value & 0x7F));
+    restore();
+  };
+
   processWAssignmentInst = function(inst){
     // d=0=W
-    var destId, srcId, op, opcode, value, ex;
+    var destId, srcId, op, opcode, value, ex, restore;
     destId = inst.dest;
     srcId = inst.src;
     op = inst.op;
@@ -205,6 +269,7 @@
       // andwf  W&=f;       (d=0)
       // iorwf  W|=f;       (d=0)
       // xorwf  W^=f;       (d=0)
+      restore = autoBank(srcId.value);
       if(!ex){
         if(op==="-="){  // NOTE:  W-=f; does not exist
           error("'W-=[file]; is not supported by the PIC16F1xxx processor!", inst);
@@ -236,6 +301,7 @@
           error("Instruction '"+inst.text+"' not supported!", inst);
         }
       }
+      restore();
     } else {
       error("Instruction '"+inst.text+"' not supported! (Unexpected source identifier!)", inst);
     }
@@ -243,12 +309,14 @@
 
   processFileAssignmentInst = function(inst){
     // d=1=file
-    var destId, srcId, op, opcode, value, ex;
+    var destId, srcId, op, opcode, value, ex, restore;
     destId = inst.dest;
     srcId = inst.src;
     op = inst.op;
     ex = inst.ex.replace("-B", "+C");
     value = destId.value;
+
+    restore = autoBank(destId.value);
     if(srcId.isW){
       if(!ex){
         // movwf  f=W;
@@ -282,9 +350,16 @@
       // comf   f^=0xFF;    (d=1)
       opcode = f1.comf.opcode | 0x80;
       addCode(opcode | (value & 0x7F));
+    } else if(srcId.isNumber && op==="="){
+      // f=# (W=#, f=W)
+      opcode = f1.movlw.opcode | (srcId.value & 0xFF);
+      addCode(opcode);
+      opcode = f1.movwf.opcode | (value & 0x7F);
+      addCode(opcode);
     } else {
       error("Instruction '"+inst.text+"' not supported!", inst);
     }
+    restore();
   };
 
   processIfInstruction = function(inst){
@@ -298,7 +373,8 @@
     // wAssign = true|false
     // pre = ("+="|"-="|"=="|"!="|"+"|"-") 0|1
     // ident = 'file'|'bit'  (|isNumber)
-    var ident, labelId, thenLabel, eofThenLabel, eofElseLabel, block, elseBlock, not, c;
+    var ident, labelId, thenLabel, eofThenLabel
+      , eofElseLabel, block, elseBlock, not, c, restore=nop;
     labelId = getLabelId();
     thenLabel = "_then_" + labelId;
     eofThenLabel = "_eofThen_" + labelId;
@@ -307,6 +383,7 @@
     block = inst.block;
     elseBlock = inst.elseBlock;
     not = inst.not;
+
     if(block.length===0 && elseBlock.length>0){
       block = elseBlock;
       elseBlock = [];
@@ -314,12 +391,14 @@
     }
     if(!inst.wAssign && !inst.pre){
       if(ident.subType==="file"){
+        restore = autoBank(ident.value);
         addCode(f1.movf.opcode | 0x80 | (ident.value & 0x7F));  // test it
         not = !not; // if not Zero
         c = not?"btfsc":"btfss";  // ZeroFlag = STATUS:0x03 Z:0x02<<7 = (0x103)
         addCode(f1[c].opcode | 0x103);
         addCode({inst:"goto", name:eofThenLabel, from:currentAddress});
       } else if(ident.subType==="bit"){
+        restore = autoBank(ident.fileIdent.value);
         c = not?"btfsc":"btfss";
         addCode(f1[c].opcode | ((ident.bit.value & 7)<<7) | (ident.fileIdent.value & 0x7F));
         addCode({inst:"goto", name:eofThenLabel, from:currentAddress});
@@ -329,6 +408,7 @@
     } else {
       error("Instruction '"+inst.text+"' not supported yet!", inst);
     }
+    restore();
     processInstructions(block);
     if(elseBlock && elseBlock.length>0){
       addCode({inst:"goto", name:eofElseLabel, from:currentAddress});
@@ -364,7 +444,8 @@
         } else {
           error("Unexpected Identifier subType:'"+ident.subType+"'", inst);
         }
-        addCode(f1.movlb.opcode | (num & 0x1F));
+        currentBank = num & 0x1F;
+        addCode(f1.movlb.opcode | currentBank);
       }
     , setpclath: function(inst){ var ident=inst.ident, num;
         if(ident.constType==="number" || ident.type==="number"){
@@ -377,30 +458,53 @@
             error("Unexpected Identifier subType:'"+ident.subType+"'", inst);
         }
       }
-    , clr:function(inst){ var ident=inst.ident;
+    //===================
+    , clr:function(inst){
+        var ident=inst.ident, restore;
         assertIsFileIdent(ident, inst);
         if(ident.isW){
           addCode(f1.clrw.opcode);
         } else {
+          restore = autoBank(ident.value);
           addCode(f1.clrf.opcode | (ident.value & 0x7F));
+          restore();
         }
       }
-    , com:function(inst){ var ident=inst.ident;
+    , com:function(inst){
+        var ident=inst.ident, restore;
         assertIsFileIdent(ident, inst);
         if(ident.isW){
           addCode(f1.comf.opcode | WREG);
         } else {
+          restore = autoBank(ident.value);
           addCode(f1.comf.opcode | 0x80 | (ident.value & 0x7F));
+          restore();
         }
       }
-    , test:function(inst){ var ident=inst.ident;
+    , test:function(inst){
+        var ident=inst.ident, restore;
         assertIsFileIdent(ident, inst);
         if(ident.isW){
           addCode(f1.movf.opcode | WREG);
         } else {
+          restore = autoBank(ident.value);
           addCode(f1.movf.opcode | 0x80 | (ident.value & 0x7F));
+          restore();
         }
       }
+    , "bitclr": function(inst){
+        var ident=inst.ident, restore;
+        restore = autoBank(ident.fileIdent.value);
+        addCode(f1.bcf.opcode | ((ident.bit.value & 7)<<7) | (ident.fileIdent.value & 0x7F));
+        restore();
+      }
+    , "bitset": function(inst){
+        var ident=inst.ident, restore;
+        restore = autoBank(ident.fileIdent.value);
+        addCode(f1.bsf.opcode | ((ident.bit.value & 7)<<7) | (ident.fileIdent.value & 0x7F));
+        restore();
+      }
+    //-------------------------------
     , "goto": function(inst){
         assertLabelDefined(inst);
         addCode({inst:"goto", name:inst.ident.name, from:currentAddress});
@@ -423,15 +527,9 @@
     , "retfie": function(inst){
         addCode(f1.retfie.opcode);
       }
-    , "bitclr": function(inst){ var ident=inst.ident;
-        addCode(f1.bcf.opcode | ((ident.bit.value & 7)<<7) | (ident.fileIdent.value & 0x7F));
-      }
-    , "bitset": function(inst){ var ident=inst.ident;
-        addCode(f1.bsf.opcode | ((ident.bit.value & 7)<<7) | (ident.fileIdent.value & 0x7F));
-      }
     , "repeat": function(inst){
         var opcode, value, labelId, rEndLabel, rLoopLabel, ident, rcounter=0x7F;
-        ident=inst.ident
+        ident=inst.ident;
         labelId = getLabelId();
         rEndLabel = "_repeatEnd_" + labelId;
         rLoopLabel = "_repeatLoop_" + labelId;

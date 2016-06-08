@@ -32,7 +32,10 @@ wPi=ffi.Library("libwiringPi", {
   rgLedSetup:["void", ["int", "int"]],
   ledRed:["void", []],
   ledGreen:["void", []],
-  ledOff:["void", []]
+  ledOff:["void", []],
+  readProg:["string", ["int"]],
+  incAddress:["void", ["int"]],
+  writeTo32WordPage:["void", ["string"]]
 });
 
 setupAll = function(){
@@ -99,6 +102,7 @@ module.exports={
   , delayXuS:wPi.delayXuS
 
   , led:led
+  , readProg:wPi.readProg
 //  , rgLedSetup:wPi.rgLedSetup
 //  , ledRed:wPi.ledRed
 //  , ledGreen:wPi.ledGreen

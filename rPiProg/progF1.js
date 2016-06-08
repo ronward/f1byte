@@ -25,7 +25,7 @@
   q = require("q");
   log = console.log;
   nop = function(){};
-  prog = {};
+  prog = {wPi:wPi};
   setup = wPi.setup;
   close = wPi.close;
   power = wPi.power;
